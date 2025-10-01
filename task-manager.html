@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Task Manager with Progress Tracker</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#fff; --accent:#3b82f6; --muted:#6b7280; --success:#16a34a; --danger:#ef4444; --glass:rgba(255,255,255,0.6);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(135deg,#eef2ff 0%,#f5f7fb 100%);color:#0f172a;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px;}
+    .app{width:100%;max-width:1100px;}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+    h1{margin:0;font-size:1.4rem}
+    .sub{color:var(--muted);font-size:0.95rem}
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:20px}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(12,18,36,0.06);}
+    form label{display:block;font-size:0.85rem;margin-top:10px;color:#111827}
+    input[type="text"], input[type="date"], select, textarea{width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e6e9ef;margin-top:6px;font-size:0.95rem;background:transparent;}
+    textarea{min-height:80px;resize:vertical}
+    .row{display:flex;gap:8px;align-items:center}
+    .btn{background:var(--accent);color:white;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+    .btn.ghost{background:#f3f4f6;color:#111827}
+    .small{font-size:0.85rem;padding:6px 10px;border-radius:8px}
+    .stats{display:flex;gap:10px;margin-top:12px}
+    .stat{flex:1;background:linear-gradient(180deg,#fbfdff,#f8fafc);padding:12px;border-radius:10px;text-align:center}
+    .stat .num{font-size:1.25rem;font-weight:700}
+    .progress-wrap{margin-top:12px;background:#eef2ff;border-radius:12px;padding:10px}
+    .progress-bar{height:14px;background:#e6eefc;border-radius:10px;overflow:hidden}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#7c3aed);width:0%;transition:width 400ms ease}
+    .filters button{padding:8px 10px;border-radius:8px;border:1px solid transparent;background:transparent;cursor:pointer}
+    .filters button.active{background:var(--accent);color:#fff}
+    .task-list{display:flex;flex-direction:column;gap:8px;max-height:64vh;overflow:auto;padding-right:6px}
+    .task{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:10px;background:var(--glass);border:1px solid rgba(15,23,42,0.04)}
+    .task .left{width:40px;display:flex;flex-direction:column;align-items:center;gap:6px}
+    .tick{width:30px;height:30px;border-radius:8px;border:2px solid #e6e9ef;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
+    .tick.checked{background:var(--success);color:#fff;border-color:transparent}
+    .tick:focus{outline:3px solid rgba(59,130,246,0.18)}
+    .task .content{flex:1}
+    .task .title{font-weight:700}
+    .task .meta{font-size:0.85rem;color:var(--muted);margin-top:6px}
+    .task .actions{display:flex;gap:6px}
+    .chip{padding:5px 8px;border-radius:999px;font-size:0.8rem;background:#fff;border:1px solid #eef2ff}
+    .empty{padding:28px;text-align:center;color:var(--muted);}
+    @media (max-width:880px){.grid{grid-template-columns:1fr;} .card{padding:14px}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div>
+        <h1>Task Manager with Progress Tracker</h1>
+        <div class="sub">Add tasks, track completion, and watch your progress grow.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="exportBtn" class="btn small">Export JSON</button>
+        <button id="clearAllBtn" class="btn ghost small">Clear All</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <form id="taskForm" autocomplete="off">
+          <label>Task Title *</label>
+          <input id="title" type="text" placeholder="e.g., Prepare presentation" required />
+          <label>Project / Tag</label>
+          <input id="project" type="text" placeholder="optional tag or project name" />
+          <label>Due Date</label>
+          <input id="due" type="date" />
+          <label>Priority</label>
+          <select id="priority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+          <label>Description</label>
+          <textarea id="desc" placeholder="Notes or steps..."></textarea>
+
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button type="submit" id="saveBtn" class="btn">Add Task</button>
+            <button type="button" id="cancelEdit" class="btn ghost" style="display:none">Cancel Edit</button>
+            <div style="flex:1"></div>
+            <div style="font-size:0.85rem;color:var(--muted);align-self:center" id="editingLabel"></div>
+          </div>
+          <input type="hidden" id="editingId" />
+        </form>
+
+        <div class="stats">
+          <div class="stat"><div class="num" id="totalNum">0</div><div class="sub">Total</div></div>
+          <div class="stat"><div class="num" id="doneNum">0</div><div class="sub">Completed</div></div>
+          <div class="stat"><div class="num" id="pendingNum">0</div><div class="sub">Pending</div></div>
+        </div>
+
+        <div class="progress-wrap">
+          <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:var(--muted);margin-bottom:8px"><div>Progress</div><div id="progressPercent">0%</div></div>
+          <div class="progress-bar" aria-hidden="true"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;flex-direction:column">
+              <strong style="font-size:1.05rem">Tasks</strong>
+              <div class="sub" style="margin-top:6px">Manage and filter tasks</div>
+            </div>
+            <div class="row">
+              <div class="filters" role="tablist" aria-label="filters">
+                <button id="fAll" class="small active">All</button>
+                <button id="fActive" class="small">Active</button>
+                <button id="fCompleted" class="small">Completed</button>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <input id="search" type="text" placeholder="Search tasks or project..." style="width:100%;padding:8px;border-radius:10px;border:1px solid #e6e9ef" />
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:10px">
+          <div id="taskList" class="task-list" aria-live="polite"></div>
+          <div id="emptyState" class="empty" style="display:none">No tasks yet. Add your first task to get started.</div>
+        </div>
+
+        <div class="card" style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:0.95rem;color:var(--muted)">Showing <span id="showingCount">0</span> tasks</div>
+          <div style="display:flex;gap:8px">
+            <select id="sortBy" class="small">
+              <option value="created_desc">Newest</option>
+              <option value="created_asc">Oldest</option>
+              <option value="due_asc">Due soon</option>
+              <option value="priority_desc">Priority</option>
+            </select>
+            <button id="bulkClearDone" class="small btn ghost">Clear Completed</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "tm_tasks_v1";
+    let tasks = []; let filter = "all"; let searchTerm = "";
+
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+    function load(){ try{ tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }catch(e){ tasks = []; } }
+
+    function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+    function fmtDate(d){ if(!d) return ""; const dt = new Date(d); return dt.toLocaleDateString(); }
+    function daysLeft(d){ if(!d) return null; const today = new Date(new Date().toDateString()); const due = new Date(new Date(d).toDateString()); return Math.ceil((due - today)/(1000*60*60*24)); }
+    function escapeHtml(s){ return String(s||"").replace(/[&<>"'`=\/]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[c]); }
+
+    function renderStats(){
+      const total = tasks.length; const done = tasks.filter(t=>t.completed).length; const pending = total - done;
+      document.getElementById("totalNum").textContent = total;
+      document.getElementById("doneNum").textContent = done;
+      document.getElementById("pendingNum").textContent = pending;
+      const pct = total === 0 ? 0 : Math.round((done/total)*100);
+      document.getElementById("progressPercent").textContent = pct + "%";
+      document.getElementById("progressFill").style.width = pct + "%";
+    }
+
+    function filterSortSearch(items){
+      let out = items.slice();
+      if(filter === "active") out = out.filter(t=>!t.completed);
+      if(filter === "completed") out = out.filter(t=>t.completed);
+      if(searchTerm.trim()){
+        const q = searchTerm.trim().toLowerCase();
+        out = out.filter(t => (t.title||"").toLowerCase().includes(q) || (t.project||"").toLowerCase().includes(q) || (t.desc||"").toLowerCase().includes(q));
+      }
+      const sortBy = document.getElementById("sortBy").value;
+      out.sort((a,b)=>{
+        if(sortBy === "created_desc") return b.createdAt - a.createdAt;
+        if(sortBy === "created_asc") return a.createdAt - b.createdAt;
+        if(sortBy === "due_asc"){ if(!a.due) return 1; if(!b.due) return -1; return new Date(a.due) - new Date(b.due); }
+        if(sortBy === "priority_desc"){ const pr = {high:3,medium:2,low:1}; return (pr[b.priority]||0) - (pr[a.priority]||0); }
+        return 0;
+      });
+      return out;
+    }
+
+    function renderList(){
+      const container = document.getElementById("taskList"); const empty = document.getElementById("emptyState");
+      const displayed = filterSortSearch(tasks);
+      container.innerHTML = "";
+      empty.style.display = displayed.length === 0 ? "block" : "none";
+      displayed.forEach(t=>{
+        const el = document.createElement("div"); el.className = "task";
+        // IMPORTANT: inline onclick on tick to ensure toggle always works
+        el.innerHTML = `
+          <div class="left">
+            <div class="tick ${t.completed ? 'checked' : ''}" title="Toggle complete" onclick="toggleComplete('${t.id}')" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){ event.preventDefault(); toggleComplete('${t.id}'); }">${t.completed ? '✓' : ''}</div>
+            <div class="chip" style="font-size:0.75rem;margin-top:6px">${t.priority || 'medium'}</div>
+          </div>
+          <div class="content">
+            <div class="title">${escapeHtml(t.title)} ${t.due ? `<span style="font-weight:600;color:${daysLeft(t.due)<0? 'var(--danger)':'var(--muted)'};font-size:0.85rem;margin-left:8px">` + (t.due ? fmtDate(t.due) : '') + `</span>` : ''}</div>
+            <div class="meta">${escapeHtml(t.project || '')}${t.project && t.desc ? ' • ' : ''}${t.desc ? escapeHtml(t.desc) : ''}</div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+              <div class="actions">
+                <button class="small btn ghost" data-action="edit" data-id="${t.id}">Edit</button>
+                <button class="small btn ghost" data-action="delete" data-id="${t.id}">Delete</button>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(el);
+      });
+      document.getElementById("showingCount").textContent = displayed.length;
+      renderStats();
+    }
+
+    function addOrUpdateTask(e){ e && e.preventDefault();
+      const idEl = document.getElementById("editingId"); const id = idEl.value;
+      const title = document.getElementById("title").value.trim(); if(!title) return alert("Please enter a task title.");
+      const project = document.getElementById("project").value.trim(); const due = document.getElementById("due").value || "";
+      const priority = document.getElementById("priority").value || "medium"; const desc = document.getElementById("desc").value.trim();
+      if(id){
+        tasks = tasks.map(t => t.id === id ? Object.assign({}, t, { title, project, due, priority, desc }) : t);
+        idEl.value = ""; document.getElementById("editingLabel").textContent = ""; document.getElementById("cancelEdit").style.display = "none"; document.getElementById("saveBtn").textContent = "Add Task";
+      } else {
+        const newTask = { id: uid(), title, project, due, priority, desc, completed: false, createdAt: Date.now() }; tasks.push(newTask);
+      }
+      document.getElementById("taskForm").reset(); save(); renderList();
+    }
+
+    function startEdit(id){
+      const t = tasks.find(x=>x.id===id); if(!t) return;
+      document.getElementById("title").value = t.title; document.getElementById("project").value = t.project || "";
+      document.getElementById("due").value = t.due || ""; document.getElementById("priority").value = t.priority || "medium";
+      document.getElementById("desc").value = t.desc || ""; document.getElementById("editingId").value = t.id;
+      document.getElementById("editingLabel").textContent = "Editing task"; document.getElementById("cancelEdit").style.display = ""; document.getElementById("saveBtn").textContent = "Update Task";
+    }
+
+    function removeTask(id){ if(!confirm("Delete this task?")) return; tasks = tasks.filter(t=>t.id !== id); save(); renderList(); }
+
+    function toggleComplete(id){
+      tasks = tasks.map(t=> t.id === id ? Object.assign({}, t, { completed: !t.completed }) : t);
+      save(); renderList();
+    }
+
+    function clearCompleted(){ if(!confirm("Clear all completed tasks?")) return; tasks = tasks.filter(t=>!t.completed); save(); renderList(); }
+    function clearAll(){ if(!confirm("Clear all tasks? This cannot be undone.")) return; tasks = []; save(); renderList(); }
+    function exportJSON(){ const blob = new Blob([JSON.stringify(tasks, null, 2)], {type:'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'tasks-export.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+    document.getElementById("taskForm").addEventListener("submit", addOrUpdateTask);
+    document.getElementById("cancelEdit").addEventListener("click", ()=>{ document.getElementById("taskForm").reset(); document.getElementById("editingId").value = ""; document.getElementById("editingLabel").textContent = ""; document.getElementById("cancelEdit").style.display = "none"; document.getElementById("saveBtn").textContent = "Add Task"; });
+
+    document.getElementById("taskList").addEventListener("click", (ev)=>{
+      const target = ev.target;
+      if(target.dataset && target.dataset.id){
+        const id = target.dataset.id; const action = target.dataset.action;
+        if(action === "edit") startEdit(id);
+        if(action === "delete") removeTask(id);
+      }
+    });
+
+    function setFilter(f){ filter = f; document.getElementById("fAll").classList.toggle("active", f==="all"); document.getElementById("fActive").classList.toggle("active", f==="active"); document.getElementById("fCompleted").classList.toggle("active", f==="completed"); renderList(); }
+    document.getElementById("fAll").addEventListener("click", ()=>setFilter("all"));
+    document.getElementById("fActive").addEventListener("click", ()=>setFilter("active"));
+    document.getElementById("fCompleted").addEventListener("click", ()=>setFilter("completed"));
+
+    document.getElementById("search").addEventListener("input", (e)=>{ searchTerm = e.target.value; renderList(); });
+    document.getElementById("sortBy").addEventListener("change", renderList);
+    document.getElementById("bulkClearDone").addEventListener("click", clearCompleted);
+    document.getElementById("clearAllBtn").addEventListener("click", clearAll);
+    document.getElementById("exportBtn").addEventListener("click", exportJSON);
+
+    function init(){ load(); renderList(); window.toggleComplete = toggleComplete; }
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
